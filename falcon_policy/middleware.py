@@ -5,13 +5,22 @@ from falcon_policy.policy import PolicyManager
 
 
 class RoleBasedPolicy(object):
-    def __init__(self, config_dict):
+    ## Added check_jwt if roles are passed within jwt claims
+    ## as an alternative if we don't want to pass X-Roles
+    ## inside every request header
+    def __init__(self, config_dict, check_jwt=False):
         self.config = PolicyConfig(config_dict)
         self.manager = PolicyManager(self.config)
+        self.check_jwt = check_jwt
 
     def process_resource(self, req, resp, resource, params):
         route = req.uri_template
-        roles_header = req.get_header('X-Roles', default='@unknown')
+        if self.check_jwt and isinstance(params, dict):
+            claims = params.get('jwt_claims')
+            roles_header = isinstance(claims, dict) and claims.get('roles') or '@unknown'
+        else:
+            roles_header = req.get_header('X-Roles', default='@unknown')
+
         provided_roles = [role.strip() for role in roles_header.split(',')]
 
         route_policy = self.manager.policies.get(route, {})
